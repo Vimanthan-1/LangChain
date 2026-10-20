@@ -1,42 +1,55 @@
+
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.tools import tool
+from langchain_core.messages import ToolMessage
 
 load_dotenv()
 google_gemini_key = os.getenv("SECRET_KEY_GEMINI")
-model = ChatGoogleGenerativeAI(
-    model="gemini-3.1-flash-lite", temperature=0.5, google_api_key=google_gemini_key
-)
 
+model = ChatGoogleGenerativeAI(
+    model="gemini-3.1-flash-lite",
+    temperature=0.5,
+    google_api_key=google_gemini_key
+)
 
 @tool
 def add(a: int, b: int) -> int:
-    """This is a function to add"""
+    """Add two integers and return their sum."""
     return a + b
 
-
-'''print(add.name)
-print(add.description)
-print(add.args)
-ans = add.invoke({"a": 2, "b": 2})
-print(ans)
-'''
-
 model_with_tools = model.bind_tools([add])
+
 response = model_with_tools.invoke(
-    "Use the add tool to calculate 2 + 2."
+    "Use the add tool to calculate 15 + 25. You must use the add tool."
 )
 
 
-if response.tool_calls:
+from langchain_core.messages import HumanMessage, ToolMessage
+
+user_message = HumanMessage(
+    content="Use the add tool to calculate 15 + 25."
+)
+
+response = model_with_tools.invoke([user_message])
+
+if not response.tool_calls:
+    print("No tool call:", response.content)
+else:
     tool_call = response.tool_calls[0]
     result = add.invoke(tool_call["args"])
-    print(result)
 
-    # Your task: execute the requested tool here
+    tool_msg = ToolMessage(
+        content=str(result),
+        tool_call_id=tool_call["id"],
+        name=tool_call["name"]
+    )
 
+    final_response = model_with_tools.invoke([
+        user_message,
+        response,
+        tool_msg
+    ])
+
+    print(final_response.content)
